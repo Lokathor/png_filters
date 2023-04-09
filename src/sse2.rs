@@ -1,5 +1,7 @@
 #![cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 
+//! PNG filter functions specialized to the `sse2` cpu extension.
+
 #[cfg(target_arch = "x86")]
 use core::arch::x86::*;
 #[cfg(target_arch = "x86_64")]

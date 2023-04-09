@@ -1,6 +1,6 @@
 #![cfg(target_arch = "aarch64")]
 
-//! PNG filter functions specialized to the Neon cpu extension.
+//! PNG filter functions specialized to the `neon` cpu extension.
 
 use core::arch::aarch64::*;
 
