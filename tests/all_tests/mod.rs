@@ -1,5 +1,7 @@
 use png_filters::*;
 
+mod neon_tests;
+
 #[test]
 fn test_recon_sub_fallback() {
   let mut expected = [1, 2, 3, u8::MAX, 5, 6, 7, 8];

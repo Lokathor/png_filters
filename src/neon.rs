@@ -1,0 +1,33 @@
+#![cfg(target_arch = "aarch64")]
+
+//! PNG filter functions specialized to the Neon cpu extension.
+
+use core::arch::aarch64::*;
+
+#[inline]
+#[must_use]
+fn int8x8_t_as_mut_slice(m: &mut int8x8_t) -> &mut [u8] {
+  let data = m as *mut int8x8_t as *mut u8;
+  let len = core::mem::size_of::<int8x8_t>();
+  unsafe { core::slice::from_raw_parts_mut(data, len) }
+}
+
+/// Like [`recon_sub_fallback`](super::recon_sub_fallback), but specialized to
+/// `neon`.
+///
+/// ## Safety
+/// * The `neon` CPU feature must be available at runtime.
+#[target_feature(enable = "neon")]
+pub unsafe fn recon_sub<const BYTES_PER_PIXEL: usize>(filtered_row: &mut [u8]) {
+  assert!(BYTES_PER_PIXEL <= 8);
+  debug_assert_eq!(filtered_row.len() % BYTES_PER_PIXEL, 0);
+  //
+  let mut a: int8x8_t = unsafe { core::mem::zeroed() };
+  filtered_row.chunks_exact_mut(BYTES_PER_PIXEL).for_each(|chunk| {
+    let mut x: int8x8_t = unsafe { core::mem::zeroed() };
+    int8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL].copy_from_slice(chunk);
+    x = unsafe { vadd_s8(x, a) };
+    chunk.copy_from_slice(&int8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL]);
+    a = x;
+  })
+}
