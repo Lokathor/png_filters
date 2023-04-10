@@ -59,7 +59,5 @@ fn test_recon_average_neon() {
       let expected = [7, 10, 66, 63, 136, 136, 43, 66];
       assert_eq!(expected, actual);
     }
-  } else {
-    panic!("neon not available.");
   }
 }
