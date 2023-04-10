@@ -90,7 +90,7 @@ jobs:
 
     strategy:
       matrix:
-        rust: [1.59,stable,nightly]
+        rust: [stable,nightly]
 
     steps:
       - name: Installing emulator and linker
