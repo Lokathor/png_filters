@@ -63,16 +63,20 @@ pub unsafe fn recon_average<const BYTES_PER_PIXEL: usize>(
   // * (a + b)/2 has to be done with 16-bit precision
   // * x + ave is done with u8_wrapping
   //
-  let mut a: int16x8_t = todo!();
+  let mut a: int8x8_t = unsafe { core::mem::zeroed() };
   filtered_row
     .chunks_exact_mut(BYTES_PER_PIXEL)
     .zip(previous_row.chunks_exact(BYTES_PER_PIXEL))
     .for_each(|(x_chunk, b_chunk)| {
-      let mut x: int8x8_t = todo!();
-      let mut b: int16x8_t = todo!();
+      let mut x: int8x8_t = unsafe { core::mem::zeroed() };
+      int8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL].copy_from_slice(chunk);
+      let mut b: int8x8_t = unsafe { core::mem::zeroed() };
+      int8x8_t_as_mut_slice(&mut b)[..BYTES_PER_PIXEL].copy_from_slice(chunk);
       {
-        todo!()
+        let ab_half = vhadd_s8(a, b);
+        x = unsafe { vadd_s8(x, a) };
       }
-      a = todo!();
+      chunk.copy_from_slice(&int8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL]);
+      a = x;
     })
 }
