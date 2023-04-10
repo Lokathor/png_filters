@@ -31,3 +31,48 @@ pub unsafe fn recon_sub<const BYTES_PER_PIXEL: usize>(filtered_row: &mut [u8]) {
     a = x;
   })
 }
+
+/// Like [`recon_up_fallback`](super::recon_up_fallback), but specialized to
+/// `neon`.
+///
+/// ## Safety
+/// * The `neon` CPU feature must be available at runtime.
+#[target_feature(enable = "neon")]
+pub unsafe fn recon_up(filtered_row: &mut [u8], previous_row: &[u8]) {
+  debug_assert_eq!(filtered_row.len(), previous_row.len());
+  //
+  filtered_row.iter_mut().zip(previous_row.iter()).for_each(|(x, b)| *x = x.wrapping_add(*b))
+}
+
+/// Like [`recon_average_fallback`](super::recon_average_fallback), but
+/// specialized to `neon`.
+///
+/// ## Safety
+/// * The `neon` CPU feature must be available at runtime.
+#[target_feature(enable = "neon")]
+#[cfg(FALSE)]
+pub unsafe fn recon_average<const BYTES_PER_PIXEL: usize>(
+  filtered_row: &mut [u8], previous_row: &[u8],
+) {
+  assert!(BYTES_PER_PIXEL <= 8);
+  debug_assert_eq!(filtered_row.len() % BYTES_PER_PIXEL, 0);
+  debug_assert_eq!(filtered_row.len(), previous_row.len());
+  //
+  // Recon(x) = Filt(x) + floor((Recon(a) + Recon(b)) / 2)
+  //
+  // * (a + b)/2 has to be done with 16-bit precision
+  // * x + ave is done with u8_wrapping
+  //
+  let mut a: int16x8_t = todo!();
+  filtered_row
+    .chunks_exact_mut(BYTES_PER_PIXEL)
+    .zip(previous_row.chunks_exact(BYTES_PER_PIXEL))
+    .for_each(|(x_chunk, b_chunk)| {
+      let mut x: int8x8_t = todo!();
+      let mut b: int16x8_t = todo!();
+      {
+        todo!()
+      }
+      a = todo!();
+    })
+}
