@@ -39,7 +39,6 @@ fn test_recon_up_neon() {
 }
 
 #[test]
-#[cfg(FALSE)]
 fn test_recon_average_neon() {
   if is_aarch64_feature_detected!("neon") {
     unsafe {
