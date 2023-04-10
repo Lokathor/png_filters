@@ -58,7 +58,6 @@ jobs:
     strategy:
       matrix:
         rust: [stable,nightly]
-        features: ["", "std"]
 
     steps:
       - name: Installing emulator and linker
@@ -74,15 +73,14 @@ jobs:
       - uses: actions/checkout@v2
       - name: build
         run: >
-          cargo build --verbose --no-default-features --target mips-unknown-linux-musl --features "$FEATURES"
+          cargo build --verbose --no-default-features --target mips-unknown-linux-musl
         env:
           FEATURES: ${{ matrix.features }}
           CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-s"
       - name: test
         run: >
-          cargo test --tests --benches --no-default-features --target mips-unknown-linux-musl --features "$FEATURES"
+          cargo test --tests --benches --no-default-features --target mips-unknown-linux-musl
         env:
-          FEATURES: ${{ matrix.features }}
           CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_RUNNER: qemu-mips-static
           CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_LINKER: mips-linux-gnu-gcc
           CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-s"
@@ -93,7 +91,6 @@ jobs:
     strategy:
       matrix:
         rust: [1.59,stable,nightly]
-        features: ["", "std"]
 
     steps:
       - name: Installing emulator and linker
@@ -110,12 +107,11 @@ jobs:
       - uses: actions/checkout@v2
       - name: build
         run: >
-          cargo build --verbose --no-default-features --target aarch64-unknown-linux-musl --features "$FEATURES"
+          cargo build --verbose --no-default-features --target aarch64-unknown-linux-musl
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
       - name: test
         run: >
-          cargo test --tests --benches --no-default-features --target aarch64-unknown-linux-musl --features "$FEATURES"
+          cargo test --tests --benches --no-default-features --target aarch64-unknown-linux-musl
         env:
-          FEATURES: ${{ matrix.features }}
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
