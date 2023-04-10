@@ -126,10 +126,10 @@ pub fn recon_average_fallback<const BYTES_PER_PIXEL: usize>(
     .for_each(|(x_chunk, b_chunk)| {
       let mut x: [u8; BYTES_PER_PIXEL] = x_chunk.try_into().unwrap();
       let b: [u8; BYTES_PER_PIXEL] = b_chunk.try_into().unwrap();
-      x.iter_mut()
-        .zip(a.iter())
-        .zip(b.iter())
-        .for_each(|((x, a), b)| *x = x.wrapping_add(a.wrapping_add(*b) / 2));
+      x.iter_mut().zip(a.iter()).zip(b.iter()).for_each(|((x, a), b)| {
+        let average: u8 = ((*a as i16 + *b as i16) / 2) as u8;
+        *x = x.wrapping_add(average);
+      });
       x_chunk.copy_from_slice(&x);
       a = x;
     })
