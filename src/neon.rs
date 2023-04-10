@@ -50,7 +50,6 @@ pub unsafe fn recon_up(filtered_row: &mut [u8], previous_row: &[u8]) {
 /// ## Safety
 /// * The `neon` CPU feature must be available at runtime.
 #[target_feature(enable = "neon")]
-#[cfg(FALSE)]
 pub unsafe fn recon_average<const BYTES_PER_PIXEL: usize>(
   filtered_row: &mut [u8], previous_row: &[u8],
 ) {
