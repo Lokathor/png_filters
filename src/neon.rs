@@ -62,7 +62,7 @@ pub unsafe fn recon_average<const BYTES_PER_PIXEL: usize>(
   // * (a + b)/2 has to be done with 9-bit precision
   // * x + ave is done with u8_wrapping
   //
-  let mut a: int8x8_t = unsafe { core::mem::zeroed() };
+  let mut a: uint8x8_t = unsafe { core::mem::zeroed() };
   filtered_row
     .chunks_exact_mut(BYTES_PER_PIXEL)
     .zip(previous_row.chunks_exact(BYTES_PER_PIXEL))
