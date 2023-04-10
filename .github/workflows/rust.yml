@@ -1,0 +1,121 @@
+name: Rust
+
+on:
+  push: {}
+  pull_request: {}
+
+jobs:
+  build_test:
+    runs-on: ${{ matrix.rust.os }}
+    strategy:
+      matrix:
+        rust:
+        # x86 without sse/sse2 on by default
+        - { target: i586-pc-windows-msvc, toolchain: stable, os: windows-latest }
+        # x86
+        - { target: i686-pc-windows-msvc, toolchain: stable, os: windows-latest }
+        # x86_64
+        - { target: x86_64-pc-windows-msvc, toolchain: stable, os: windows-latest }
+        # wasm32
+        - { target: wasm32-wasi, toolchain: stable, os: ubuntu-latest, wasmtime: v5.0.0 }
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust.toolchain }}
+        target:  ${{ matrix.rust.target }}
+        profile: minimal
+        default: true
+
+    - name: Install wasmtime
+      if: matrix.rust.target == 'wasm32-wasi'
+      run: |
+        curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version ${{ matrix.rust.wasmtime }}
+        echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
+
+    - name: Build the crate
+      run: cargo build --target ${{ matrix.rust.target }}
+
+    - name: Test
+      if: matrix.rust.target == 'i586-pc-windows-msvc' || matrix.rust.target == 'i686-pc-windows-msvc' || matrix.rust.target == 'x86_64-pc-windows-msvc' || matrix.rust.target == 'wasm32-wasi'
+      env:
+        CARGO_TARGET_WASM32_WASI_RUNNER: wasmtime run --wasm-features all --dir .
+      run: cargo test --target ${{ matrix.rust.target }}
+    
+    - name: switch over to native cpu features / wasm simd
+      run: mv .cargo-ci .cargo
+    
+    - name: Test
+      if: matrix.rust.target == 'i586-pc-windows-msvc' || matrix.rust.target == 'i686-pc-windows-msvc' || matrix.rust.target == 'x86_64-pc-windows-msvc' || matrix.rust.target == 'wasm32-wasi'
+      env:
+        CARGO_TARGET_WASM32_WASI_RUNNER: wasmtime run --wasm-features all --dir .
+      run: cargo test --target ${{ matrix.rust.target }}
+
+  cross_compile_mips:
+    # this target is just for making sure we aren't breaking endian-ness, since MIPS is one of the few big-endian targets
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        rust: [stable,nightly]
+        features: ["", "std"]
+
+    steps:
+      - name: Installing emulator and linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install qemu gcc libc6-dev ca-certificates gcc-mips-linux-gnu libc6-dev-mips-cross binfmt-support qemu-user-static qemu-system-mips
+      - name: Installing Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          toolchain: ${{ matrix.rust }}
+          target: mips-unknown-linux-musl
+      - uses: actions/checkout@v2
+      - name: build
+        run: >
+          cargo build --verbose --no-default-features --target mips-unknown-linux-musl --features "$FEATURES"
+        env:
+          FEATURES: ${{ matrix.features }}
+          CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-s"
+      - name: test
+        run: >
+          cargo test --tests --benches --no-default-features --target mips-unknown-linux-musl --features "$FEATURES"
+        env:
+          FEATURES: ${{ matrix.features }}
+          CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_RUNNER: qemu-mips-static
+          CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_LINKER: mips-linux-gnu-gcc
+          CARGO_TARGET_MIPS_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-s"
+
+  cross_compile_aarch64:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        rust: [1.59,stable,nightly]
+        features: ["", "std"]
+
+    steps:
+      - name: Installing emulator and linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install qemu binfmt-support qemu-user-static gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Installing Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          toolchain: ${{ matrix.rust }}
+          target: aarch64-unknown-linux-musl
+      - uses: actions/checkout@v2
+      - name: build
+        run: >
+          cargo build --verbose --no-default-features --target aarch64-unknown-linux-musl --features "$FEATURES"
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
+      - name: test
+        run: >
+          cargo test --tests --benches --no-default-features --target aarch64-unknown-linux-musl --features "$FEATURES"
+        env:
+          FEATURES: ${{ matrix.features }}
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
