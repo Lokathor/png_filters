@@ -59,12 +59,15 @@ pub mod fallbacks;
 pub mod neon;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub mod sse2;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+pub mod sse4_1;
 
 /// Given the bytes for each filtered line, unfilters the data in place.
 ///
 /// On each line, the first byte of the line will be the filter type, and the
 /// following bytes will be the image data. The number of following bytes should
 /// evenly divide by `BYTES_PER_PIXEL`.
+#[allow(unused)]
 pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8>) {
   let mut sub: unsafe fn(&mut [u8]) = fallbacks::recon_sub::<BYTES_PER_PIXEL>;
   let mut up: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_up;
@@ -73,12 +76,19 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
   let mut paeth: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_paeth::<BYTES_PER_PIXEL>;
 
   #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-  if is_x86_feature_detected!("sse2") {
-    sub = sse2::recon_sub::<BYTES_PER_PIXEL>;
-    up = sse2::recon_up;
-    average = sse2::recon_average::<BYTES_PER_PIXEL>;
-    average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
-    paeth = sse2::recon_paeth::<BYTES_PER_PIXEL>;
+  {
+    let has_sse4_1 = is_x86_feature_detected!("sse4.1");
+    let has_sse2 = is_x86_feature_detected!("sse2");
+    if BYTES_PER_PIXEL >= 3 && has_sse4_1 {
+      paeth = sse4_1::recon_paeth::<BYTES_PER_PIXEL>;
+    } else if BYTES_PER_PIXEL >= 3 && has_sse2 {
+      paeth = sse2::recon_paeth::<BYTES_PER_PIXEL>;
+    }
+    if BYTES_PER_PIXEL >= 8 && has_sse2 {
+      sub = sse2::recon_sub::<BYTES_PER_PIXEL>;
+      average = sse2::recon_average::<BYTES_PER_PIXEL>;
+      average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
+    }
   }
   #[cfg(target_arch = "aarch64")]
   if is_aarch64_feature_detected!("neon") {
@@ -101,7 +111,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => (),
       _ => (),
     }
-    *filter = 0;
+    //*filter = 0;
     line
   } else {
     return;
@@ -116,7 +126,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => unsafe { paeth(line, previous) },
       _ => (),
     }
-    *filter = 0;
+    //*filter = 0;
     previous = line;
   });
 }
