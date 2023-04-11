@@ -52,8 +52,71 @@
 //! not advised. The extra time taken on memory operations will outweigh the
 //! time saved on math operations.
 
+use core::slice::ChunksExactMut;
+
 pub mod fallbacks;
 #[cfg(target_arch = "aarch64")]
 pub mod neon;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub mod sse2;
+
+/// Given the bytes for each filtered line, unfilters the data in place.
+///
+/// On each line, the first byte of the line will be the filter type, and the
+/// following bytes will be the image data. The number of following bytes should
+/// evenly divide by `BYTES_PER_PIXEL`.
+pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8>) {
+  let mut sub: unsafe fn(&mut [u8]) = fallbacks::recon_sub::<BYTES_PER_PIXEL>;
+  let mut up: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_up;
+  let mut average: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_average::<BYTES_PER_PIXEL>;
+  let mut average_top: unsafe fn(&mut [u8]) = fallbacks::recon_average_top::<BYTES_PER_PIXEL>;
+  let mut paeth: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_paeth::<BYTES_PER_PIXEL>;
+
+  #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+  if is_x86_feature_detected!("sse2") {
+    sub = sse2::recon_sub::<BYTES_PER_PIXEL>;
+    up = sse2::recon_up;
+    average = sse2::recon_average::<BYTES_PER_PIXEL>;
+    average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
+    paeth = sse2::recon_paeth::<BYTES_PER_PIXEL>;
+  }
+  #[cfg(target_arch = "aarch64")]
+  if is_aarch64_feature_detected!("neon") {
+    sub = neon::recon_sub::<BYTES_PER_PIXEL>;
+    up = neon::recon_up;
+    average = neon::recon_average::<BYTES_PER_PIXEL>;
+    average_top = neon::recon_average_top::<BYTES_PER_PIXEL>;
+    paeth = neon::recon_paeth::<BYTES_PER_PIXEL>;
+  }
+
+  // Won't panic: `chunk_size` is always non-zero (ChunksExactMut invariant).
+  let mut lines = lines.map(|line| line.split_first_mut().unwrap());
+
+  // most filters run differently or not at all on the top line.
+  let mut previous: &[u8] = if let Some((filter, line)) = lines.next() {
+    match filter {
+      1 => unsafe { sub(line) },
+      2 => (),
+      3 => unsafe { average_top(line) },
+      4 => (),
+      _ => (),
+    }
+    *filter = 0;
+    line
+  } else {
+    return;
+  };
+
+  // now handle all other lines
+  lines.for_each(|(filter, line)| {
+    match filter {
+      1 => unsafe { sub(line) },
+      2 => unsafe { up(line, previous) },
+      3 => unsafe { average(line, previous) },
+      4 => unsafe { paeth(line, previous) },
+      _ => (),
+    }
+    *filter = 0;
+    previous = line;
+  });
+}
