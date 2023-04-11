@@ -67,7 +67,7 @@ pub mod sse4_1;
 /// On each line, the first byte of the line will be the filter type, and the
 /// following bytes will be the image data. The number of following bytes should
 /// evenly divide by `BYTES_PER_PIXEL`.
-#[allow(unused)]
+#[inline]
 pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8>) {
   let mut sub: unsafe fn(&mut [u8]) = fallbacks::recon_sub::<BYTES_PER_PIXEL>;
   let mut up: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_up;
@@ -91,12 +91,19 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
     }
   }
   #[cfg(target_arch = "aarch64")]
-  if is_aarch64_feature_detected!("neon") {
-    sub = neon::recon_sub::<BYTES_PER_PIXEL>;
-    up = neon::recon_up;
-    average = neon::recon_average::<BYTES_PER_PIXEL>;
-    average_top = neon::recon_average_top::<BYTES_PER_PIXEL>;
-    paeth = neon::recon_paeth::<BYTES_PER_PIXEL>;
+  {
+    let has_neon = std::arch::is_aarch64_feature_detected!("neon");
+    if has_neon {
+      up = neon::recon_up;
+    }
+    if (BYTES_PER_PIXEL == 2 || BYTES_PER_PIXEL >= 4) && has_neon {
+      paeth = neon::recon_paeth::<BYTES_PER_PIXEL>;
+    }
+    if BYTES_PER_PIXEL >= 4 && has_neon {
+      sub = neon::recon_sub::<BYTES_PER_PIXEL>;
+      average = neon::recon_average::<BYTES_PER_PIXEL>;
+      average_top = neon::recon_average_top::<BYTES_PER_PIXEL>;
+    }
   }
 
   // Won't panic: `chunk_size` is always non-zero (ChunksExactMut invariant).
@@ -111,7 +118,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => (),
       _ => (),
     }
-    //*filter = 0;
+    *filter = 0;
     line
   } else {
     return;
@@ -126,7 +133,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => unsafe { paeth(line, previous) },
       _ => (),
     }
-    //*filter = 0;
+    *filter = 0;
     previous = line;
   });
 }

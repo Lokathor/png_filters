@@ -20,6 +20,27 @@ fn int16x8_t_as_mut_slice(m: &mut int16x8_t) -> &mut [i16] {
   unsafe { core::slice::from_raw_parts_mut(data, len) }
 }
 
+#[inline]
+#[target_feature(enable = "neon")]
+unsafe fn uint8x8_t_load<const BYTES_PER_PIXEL: usize>(chunk: &[u8]) -> uint8x8_t {
+  if BYTES_PER_PIXEL == 8 {
+    vld1_u8(chunk.as_ptr())
+  } else {
+    let mut x: uint8x8_t = unsafe { core::mem::zeroed() };
+    uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL].copy_from_slice(chunk);
+    x
+  }
+}
+#[inline]
+#[target_feature(enable = "neon")]
+unsafe fn uint8x8_t_store<const BYTES_PER_PIXEL: usize>(chunk: &mut [u8], mut x: uint8x8_t) {
+  if BYTES_PER_PIXEL == 8 {
+    vst1_u8(chunk.as_mut_ptr(), x)
+  } else {
+    chunk.copy_from_slice(&uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL]);
+  }
+}
+
 /// Like [`recon_sub_fallback`](super::recon_sub_fallback), but specialized to
 /// `neon`.
 ///
@@ -32,10 +53,9 @@ pub unsafe fn recon_sub<const BYTES_PER_PIXEL: usize>(filtered_row: &mut [u8]) {
   //
   let mut a: uint8x8_t = unsafe { core::mem::zeroed() };
   filtered_row.chunks_exact_mut(BYTES_PER_PIXEL).for_each(|chunk| {
-    let mut x: uint8x8_t = unsafe { core::mem::zeroed() };
-    uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL].copy_from_slice(chunk);
+    let mut x: uint8x8_t = uint8x8_t_load::<BYTES_PER_PIXEL>(chunk);
     x = unsafe { vadd_u8(x, a) };
-    chunk.copy_from_slice(&uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL]);
+    uint8x8_t_store::<BYTES_PER_PIXEL>(chunk, x);
     a = x;
   })
 }
@@ -75,15 +95,13 @@ pub unsafe fn recon_average<const BYTES_PER_PIXEL: usize>(
     .chunks_exact_mut(BYTES_PER_PIXEL)
     .zip(previous_row.chunks_exact(BYTES_PER_PIXEL))
     .for_each(|(x_chunk, b_chunk)| {
-      let mut x: uint8x8_t = unsafe { core::mem::zeroed() };
-      uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL].copy_from_slice(x_chunk);
-      let mut b: uint8x8_t = unsafe { core::mem::zeroed() };
-      uint8x8_t_as_mut_slice(&mut b)[..BYTES_PER_PIXEL].copy_from_slice(b_chunk);
+      let mut x: uint8x8_t = uint8x8_t_load::<BYTES_PER_PIXEL>(x_chunk);
+      let b: uint8x8_t = uint8x8_t_load::<BYTES_PER_PIXEL>(b_chunk);
       {
         let ab_half = vhadd_u8(a, b);
         x = unsafe { vadd_u8(x, ab_half) };
       }
-      x_chunk.copy_from_slice(&uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL]);
+      uint8x8_t_store::<BYTES_PER_PIXEL>(x_chunk, x);
       a = x;
     })
 }
@@ -100,10 +118,9 @@ pub unsafe fn recon_average_top<const BYTES_PER_PIXEL: usize>(filtered_row: &mut
   //
   let mut a: uint8x8_t = unsafe { core::mem::zeroed() };
   filtered_row.chunks_exact_mut(BYTES_PER_PIXEL).for_each(|chunk| {
-    let mut x: uint8x8_t = unsafe { core::mem::zeroed() };
-    uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL].copy_from_slice(chunk);
+    let mut x: uint8x8_t = uint8x8_t_load::<BYTES_PER_PIXEL>(chunk);
     x = unsafe { vadd_u8(x, vshr_n_u8::<1>(a)) };
-    chunk.copy_from_slice(&uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL]);
+    uint8x8_t_store::<BYTES_PER_PIXEL>(chunk, x);
     a = x;
   })
 }
@@ -127,8 +144,7 @@ pub unsafe fn recon_paeth<const BYTES_PER_PIXEL: usize>(
     .chunks_exact_mut(BYTES_PER_PIXEL)
     .zip(previous_row.chunks_exact(BYTES_PER_PIXEL))
     .for_each(|(x_chunk, b_chunk)| {
-      let mut x: uint8x8_t = unsafe { core::mem::zeroed() }; // u8
-      uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL].copy_from_slice(x_chunk);
+      let mut x: uint8x8_t = uint8x8_t_load::<BYTES_PER_PIXEL>(x_chunk);
       let mut b: int16x8_t = unsafe { core::mem::zeroed() }; // i16
       int16x8_t_as_mut_slice(&mut b)
         .iter_mut()
@@ -149,7 +165,7 @@ pub unsafe fn recon_paeth<const BYTES_PER_PIXEL: usize>(
         let paeth: uint8x8_t = vget_low_u8(vuzp1q_u8(paeth_u8, unsafe { core::mem::zeroed() }));
         x = vadd_u8(x, paeth);
       }
-      x_chunk.copy_from_slice(&uint8x8_t_as_mut_slice(&mut x)[..BYTES_PER_PIXEL]);
+      uint8x8_t_store::<BYTES_PER_PIXEL>(x_chunk, x);
       let wide_x: uint8x16_t = vcombine_u8(x, unsafe { core::mem::zeroed() });
       let zipped_x: uint8x16_t = vzip1q_u8(wide_x, unsafe { core::mem::zeroed() });
       a = vreinterpretq_s16_u8(zipped_x);
