@@ -5,3 +5,6 @@ repository = "https://github.com/Lokathor/png_filters"
 version = "0.1.0"
 edition = "2021"
 license = "Zlib OR Apache-2.0 OR MIT"
+
+[dev-dependencies]
+getrandom = "0.2"
