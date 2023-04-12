@@ -88,6 +88,11 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       sub = sse2::recon_sub::<BYTES_PER_PIXEL>;
       average = sse2::recon_average::<BYTES_PER_PIXEL>;
       average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
+      // the sse2 `up` fn will normally not be needed since the fallback will
+      // already have sse2 powers in i686 and x86_64 targets. This line only has
+      // an effect on i586 targets. Still, if there's 8 bytes per pixel and
+      // you *are* on an i586 you'll probably want the extra boost.
+      up = sse2::recon_up;
     }
   }
   #[cfg(target_arch = "aarch64")]
@@ -118,7 +123,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => (),
       _ => (),
     }
-    *filter = 0;
+    //*filter = 0;
     line
   } else {
     return;
@@ -133,7 +138,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => unsafe { paeth(line, previous) },
       _ => (),
     }
-    *filter = 0;
+    //*filter = 0;
     previous = line;
   });
 }
