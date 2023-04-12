@@ -167,8 +167,8 @@ pub unsafe fn recon_paeth<const BYTES_PER_PIXEL: usize>(
         let pa_le_pc = i16_le_sse2(pa, pc);
         let pa_le_pb_and_pa_le_pc = _mm_and_si128(pa_le_pb, pa_le_pc);
         let pb_le_pc = i16_le_sse2(pb, pc);
-        let pick_b_or_c = _mm_blendv_epi8(b, c, pb_le_pc);
-        let paeth16 = _mm_blendv_epi8(a, pick_b_or_c, pa_le_pb_and_pa_le_pc);
+        let pick_b_or_c = _mm_blendv_epi8(c, b, pb_le_pc);
+        let paeth16 = _mm_blendv_epi8(pick_b_or_c, a, pa_le_pb_and_pa_le_pc);
         let paeth = _mm_packus_epi16(paeth16, ZEROED);
         x = _mm_add_epi8(x, paeth);
       }
