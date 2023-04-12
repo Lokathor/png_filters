@@ -1,6 +1,6 @@
 [package]
 name = "png_filters"
-description = ""
+description = "PNG filtering related functions"
 repository = "https://github.com/Lokathor/png_filters"
 version = "0.1.0"
 edition = "2021"

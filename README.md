@@ -1,2 +1,5 @@
+# [Docs.rs](https://docs.rs/png_filters)
+
 # png_filters
-PNG Filtering Functions
+
+PNG filtering related functions
