@@ -92,6 +92,14 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
     average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
     paeth = sse2::recon_paeth::<BYTES_PER_PIXEL>;
   }
+  #[cfg(FALSE)]
+  if std::arch::is_aarch64_feature_detected!("neon") {
+    sub = neon::recon_sub::<BYTES_PER_PIXEL>;
+    up = neon::recon_up;
+    average = neon::recon_average::<BYTES_PER_PIXEL>;
+    average_top = neon::recon_average_top::<BYTES_PER_PIXEL>;
+    paeth = neon::recon_paeth::<BYTES_PER_PIXEL>;
+  }
   //#[cfg(FALSE)]
   #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
   {
@@ -111,24 +119,27 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
     }
     if BYTES_PER_PIXEL >= 4 && has_sse2 {
       sub = sse2::recon_sub::<BYTES_PER_PIXEL>;
-      // only affects i586 targets running with sse2, but we might as well put it
-      // here.
+      // This only affects i586 targets running with sse2, but we might as well
+      // put it here.
       up = sse2::recon_up;
     }
   }
+  //#[cfg(FALSE)]
   #[cfg(target_arch = "aarch64")]
   {
     let has_neon = std::arch::is_aarch64_feature_detected!("neon");
-    if has_neon {
-      up = neon::recon_up;
-    }
     if (BYTES_PER_PIXEL == 2 || BYTES_PER_PIXEL >= 4) && has_neon {
+      // Note(Lokathor): I'm not sure why, but at ByPP==3 the scalar versions
+      // actually work faster than the Neon versions even though Neon runs
+      // better at ByPP==2. Might be something to do with register+op
+      // scheduling, or something like that.
       paeth = neon::recon_paeth::<BYTES_PER_PIXEL>;
-    }
-    if BYTES_PER_PIXEL >= 4 && has_neon {
       sub = neon::recon_sub::<BYTES_PER_PIXEL>;
       average = neon::recon_average::<BYTES_PER_PIXEL>;
       average_top = neon::recon_average_top::<BYTES_PER_PIXEL>;
+    }
+    if has_neon {
+      up = neon::recon_up;
     }
   }
 
@@ -144,7 +155,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => (),
       _ => (),
     }
-    //*filter = 0;
+    *filter = 0;
     line
   } else {
     return;
@@ -159,7 +170,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       4 => unsafe { paeth(line, previous) },
       _ => (),
     }
-    //*filter = 0;
+    *filter = 0;
     previous = line;
   });
 }

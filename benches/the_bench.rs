@@ -1,6 +1,11 @@
 #![feature(test)]
 #![allow(clippy::identity_op)]
 
+//! The `*filter = 0;` parts of `unfilter_lines` has to be commented out for
+//! these benchmarks to work right!! Otherwise, only the very first run of
+//! benchmarking will do any work, and all other benchmark passes will see a
+//! "no-op" filter byte and do nothing.
+
 extern crate test;
 use test::Bencher;
 
