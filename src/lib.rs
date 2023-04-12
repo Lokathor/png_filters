@@ -68,6 +68,7 @@ pub mod sse4_1;
 /// following bytes will be the image data. The number of following bytes should
 /// evenly divide by `BYTES_PER_PIXEL`.
 #[inline]
+#[allow(unused_mut)]
 pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8>) {
   let mut sub: unsafe fn(&mut [u8]) = fallbacks::recon_sub::<BYTES_PER_PIXEL>;
   let mut up: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_up;
@@ -75,23 +76,43 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
   let mut average_top: unsafe fn(&mut [u8]) = fallbacks::recon_average_top::<BYTES_PER_PIXEL>;
   let mut paeth: unsafe fn(&mut [u8], &[u8]) = fallbacks::recon_paeth::<BYTES_PER_PIXEL>;
 
+  #[cfg(FALSE)]
+  if is_x86_feature_detected!("sse4.1") {
+    sub = sse4_1::recon_sub::<BYTES_PER_PIXEL>;
+    up = sse4_1::recon_up;
+    average = sse4_1::recon_average::<BYTES_PER_PIXEL>;
+    average_top = sse4_1::recon_average_top::<BYTES_PER_PIXEL>;
+    paeth = sse4_1::recon_paeth::<BYTES_PER_PIXEL>;
+  }
+  #[cfg(FALSE)]
+  if is_x86_feature_detected!("sse2") {
+    sub = sse2::recon_sub::<BYTES_PER_PIXEL>;
+    up = sse2::recon_up;
+    average = sse2::recon_average::<BYTES_PER_PIXEL>;
+    average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
+    paeth = sse2::recon_paeth::<BYTES_PER_PIXEL>;
+  }
+  //#[cfg(FALSE)]
   #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
   {
     let has_sse4_1 = is_x86_feature_detected!("sse4.1");
     let has_sse2 = is_x86_feature_detected!("sse2");
+    if BYTES_PER_PIXEL >= 8 && has_sse4_1 {
+      average = sse4_1::recon_average::<BYTES_PER_PIXEL>;
+      average_top = sse4_1::recon_average_top::<BYTES_PER_PIXEL>;
+    } else if BYTES_PER_PIXEL >= 8 && has_sse2 {
+      average = sse2::recon_average::<BYTES_PER_PIXEL>;
+      average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
+    }
     if BYTES_PER_PIXEL >= 3 && has_sse4_1 {
       paeth = sse4_1::recon_paeth::<BYTES_PER_PIXEL>;
     } else if BYTES_PER_PIXEL >= 3 && has_sse2 {
       paeth = sse2::recon_paeth::<BYTES_PER_PIXEL>;
     }
-    if BYTES_PER_PIXEL >= 8 && has_sse2 {
+    if BYTES_PER_PIXEL >= 4 && has_sse2 {
       sub = sse2::recon_sub::<BYTES_PER_PIXEL>;
-      average = sse2::recon_average::<BYTES_PER_PIXEL>;
-      average_top = sse2::recon_average_top::<BYTES_PER_PIXEL>;
-      // the sse2 `up` fn will normally not be needed since the fallback will
-      // already have sse2 powers in i686 and x86_64 targets. This line only has
-      // an effect on i586 targets. Still, if there's 8 bytes per pixel and
-      // you *are* on an i586 you'll probably want the extra boost.
+      // only affects i586 targets running with sse2, but we might as well put it
+      // here.
       up = sse2::recon_up;
     }
   }
