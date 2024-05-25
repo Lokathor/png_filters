@@ -117,7 +117,7 @@ pub fn unfilter_lines<const BYTES_PER_PIXEL: usize>(lines: ChunksExactMut<'_, u8
       1 => unsafe { sub(line) },
       2 => (),
       3 => unsafe { average_top(line) },
-      4 => (),
+      4 => unsafe { sub(line) },
       _ => (),
     }
     *filter = 0;
